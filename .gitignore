@@ -1,0 +1,7 @@
+node_modules
+.env
+*.log
+setup*.sh
+my-token.txt
+test-*.json
+upload-test.sh
