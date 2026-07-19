@@ -7,6 +7,7 @@ const User = require('../models/User')
 const Report = require('../models/Report')
 const Block = require('../models/Block')
 const { protect } = require('../middleware/auth')
+const { sendPushNotification } = require('../utils/sendPush')
 
 const messageLimiter = rateLimit({
   windowMs: 60 * 1000,
@@ -75,6 +76,9 @@ router.post('/', protect, messageLimiter, async (req, res) => {
       ciphertext,
       nonce
     })
+
+    // no content in the notification — the server never has plaintext to show
+    sendPushNotification(receiver.fcmToken, 'New message', `${req.user.displayName} sent you a message`)
 
     res.status(201).json({ success: true, data: message })
   } catch (error) {

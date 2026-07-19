@@ -93,9 +93,6 @@ router.post('/register/student', authLimiter, async (req, res) => {
   }
 })
 
-// SECURITY: role is intentionally NOT accepted from the client here.
-// Self-registration always creates 'lecturer'. Elevation to hod/dean/dpr/sug/super_admin
-// requires an existing super_admin using PATCH /admin/users/:id/promote
 router.post('/register/staff', authLimiter, async (req, res) => {
   try {
     const { phoneNumber, email, password, displayName, deptCode, facultyCode, department, faculty } = req.body
@@ -323,7 +320,6 @@ router.post('/forgot-password', authLimiter, async (req, res) => {
     }
 
     const user = await User.findOne({ email: email.toLowerCase() })
-    // Always respond the same way whether or not the account exists � prevents email enumeration
     if (user) {
       const otp = generateOTP()
       user.verificationOTP = await bcrypt.hash(otp, 10)
@@ -362,13 +358,29 @@ router.post('/reset-password', authLimiter, async (req, res) => {
     user.passwordHash = await bcrypt.hash(newPassword, 12)
     user.verificationOTP = undefined
     user.verificationOTPExpiry = undefined
-    user.tokenVersion += 1 // invalidate any existing sessions in case the account was compromised
+    user.tokenVersion += 1
     await user.save()
 
     res.status(200).json({ success: true, message: 'Password reset successful. Please log in with your new password.' })
   } catch (error) {
     console.error(error)
     res.status(500).json({ success: false, error: 'Failed to reset password' })
+  }
+})
+
+// PATCH /auth/fcm-token — app calls this after Firebase generates a device token
+router.patch('/fcm-token', protect, async (req, res) => {
+  try {
+    const { fcmToken } = req.body
+    if (!fcmToken) {
+      return res.status(400).json({ success: false, error: 'fcmToken is required' })
+    }
+    req.user.fcmToken = fcmToken
+    await req.user.save()
+    res.status(200).json({ success: true, message: 'Push token registered' })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ success: false, error: 'Failed to register push token' })
   }
 })
 

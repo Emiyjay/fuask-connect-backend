@@ -7,6 +7,7 @@ const Group = require('../models/Group')
 const GroupMembership = require('../models/GroupMembership')
 const { protect } = require('../middleware/auth')
 const { uploadFields } = require('../middleware/upload')
+const { sendPushToMany } = require('../utils/sendPush')
 
 const RESTRICTED_GROUP_TYPES = ['school', 'faculty', 'department', 'sug']
 
@@ -46,6 +47,14 @@ router.post('/', protect, ...uploadFields('media', 'fuask-connect/posts', 5), as
     const media = (req.uploadedFiles || []).map(f => ({ url: f.url, type: f.type }))
 
     const post = await Post.create({ groupId, authorId: req.user._id, content: content.trim(), media })
+
+    // announcements (restricted group types) push-notify every member
+    if (RESTRICTED_GROUP_TYPES.includes(group.type)) {
+      const members = await GroupMembership.find({ groupId, userId: { $ne: req.user._id } })
+        .populate('userId', 'fcmToken')
+      const tokens = members.filter(m => m.userId).map(m => m.userId.fcmToken)
+      sendPushToMany(tokens, `New announcement in ${group.name}`, content.trim().slice(0, 100))
+    }
 
     res.status(201).json({ success: true, data: post })
   } catch (error) {
