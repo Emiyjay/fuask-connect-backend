@@ -5,7 +5,10 @@ let initialized = false
 let messaging = null
 
 try {
-  const serviceAccount = require('./firebase-service-account.json')
+  const serviceAccount = process.env.FIREBASE_SERVICE_ACCOUNT
+    ? JSON.parse(process.env.FIREBASE_SERVICE_ACCOUNT)
+    : require('./firebase-service-account.json')
+
   const app = initializeApp({ credential: cert(serviceAccount) })
   messaging = getMessaging(app)
   initialized = true
