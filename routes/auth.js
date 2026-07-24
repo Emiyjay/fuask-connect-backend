@@ -8,6 +8,7 @@ const router = express.Router()
 const User = require('../models/User')
 const validateMatric = require('../utils/validateMatric')
 const validatePhone = require('../utils/validatePhone')
+const validatePassword = require('../utils/validatePassword')
 const { sendOTPEmail } = require('../utils/sendEmail')
 const { syncStudentGroups, syncStaffGroups } = require('../utils/groupSync')
 const { protect } = require('../middleware/auth')
@@ -35,8 +36,10 @@ router.post('/register/student', authLimiter, async (req, res) => {
     if (!email || !password || !displayName) {
       return res.status(400).json({ success: false, error: 'Email, password, and display name are required' })
     }
-    if (password.length < 8) {
-      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' })
+
+    const passwordCheck = validatePassword(password)
+    if (!passwordCheck.valid) {
+      return res.status(400).json({ success: false, error: passwordCheck.error })
     }
 
     const matricResult = validateMatric(matricNumber)
@@ -82,6 +85,7 @@ router.post('/register/student', authLimiter, async (req, res) => {
         id: user._id,
         displayName: user.displayName,
         email: user.email,
+        matricNumber: user.matricNumber,
         department: user.department,
         level: user.level,
         isVerified: user.isVerified
@@ -100,8 +104,10 @@ router.post('/register/staff', authLimiter, async (req, res) => {
     if (!email || !password || !displayName || !phoneNumber) {
       return res.status(400).json({ success: false, error: 'Phone number, email, password, and display name are required' })
     }
-    if (password.length < 8) {
-      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' })
+
+    const passwordCheck = validatePassword(password)
+    if (!passwordCheck.valid) {
+      return res.status(400).json({ success: false, error: passwordCheck.error })
     }
 
     const phoneResult = validatePhone(phoneNumber)
@@ -243,21 +249,30 @@ router.post('/resend-otp', authLimiter, async (req, res) => {
   }
 })
 
+// LOGIN: accepts matric number, email, OR phone number as "identifier"
 router.post('/login', authLimiter, async (req, res) => {
   try {
-    const { email, password } = req.body
-    if (!email || !password) {
-      return res.status(400).json({ success: false, error: 'Email and password are required' })
+    const { identifier, password } = req.body
+    if (!identifier || !password) {
+      return res.status(400).json({ success: false, error: 'Matric number/email and password are required' })
     }
 
-    const user = await User.findOne({ email: email.toLowerCase() }).select('+passwordHash')
+    const cleaned = identifier.trim()
+    const user = await User.findOne({
+      $or: [
+        { email: cleaned.toLowerCase() },
+        { matricNumber: cleaned.toUpperCase() },
+        { phoneNumber: cleaned }
+      ]
+    }).select('+passwordHash')
+
     if (!user) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' })
+      return res.status(401).json({ success: false, error: 'Invalid credentials' })
     }
 
     const match = await bcrypt.compare(password, user.passwordHash)
     if (!match) {
-      return res.status(401).json({ success: false, error: 'Invalid email or password' })
+      return res.status(401).json({ success: false, error: 'Invalid credentials' })
     }
 
     if (!user.isVerified) {
@@ -341,8 +356,10 @@ router.post('/reset-password', authLimiter, async (req, res) => {
     if (!email || !otp || !newPassword) {
       return res.status(400).json({ success: false, error: 'email, otp, and newPassword are required' })
     }
-    if (newPassword.length < 8) {
-      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' })
+
+    const passwordCheck = validatePassword(newPassword)
+    if (!passwordCheck.valid) {
+      return res.status(400).json({ success: false, error: passwordCheck.error })
     }
 
     const user = await User.findOne({ email: email.toLowerCase() }).select('+verificationOTP +verificationOTPExpiry')
@@ -368,7 +385,6 @@ router.post('/reset-password', authLimiter, async (req, res) => {
   }
 })
 
-// PATCH /auth/fcm-token — app calls this after Firebase generates a device token
 router.patch('/fcm-token', protect, async (req, res) => {
   try {
     const { fcmToken } = req.body
