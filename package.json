@@ -32,7 +32,8 @@
     "multer-storage-cloudinary": "^4.0.0",
     "nodemailer": "^9.0.3",
     "react-native-safe-area-context": "^5.8.0",
-    "react-native-screens": "^4.26.2"
+    "react-native-screens": "^4.26.2",
+    "resend": "^6.18.0"
   },
   "devDependencies": {
     "nodemon": "^3.1.14"

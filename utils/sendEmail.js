@@ -1,18 +1,9 @@
-const nodemailer = require('nodemailer')
-
-const transporter = nodemailer.createTransport({
-  host: process.env.EMAIL_HOST,
-  port: process.env.EMAIL_PORT,
-  secure: false,
-  auth: {
-    user: process.env.EMAIL_USER,
-    pass: process.env.EMAIL_PASS
-  }
-})
+const { Resend } = require('resend')
+const resend = new Resend(process.env.RESEND_API_KEY)
 
 async function sendOTPEmail(toEmail, otp, displayName) {
-  await transporter.sendMail({
-    from: `"FUASK Connect" <${process.env.EMAIL_USER}>`,
+  await resend.emails.send({
+    from: 'FUASK Connect <onboarding@resend.dev>', // swap once your domain is verified — see note below
     to: toEmail,
     subject: 'Verify your FUASK Connect account',
     html: `
