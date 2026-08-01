@@ -1,6 +1,5 @@
 const express = require('express')
 const router = express.Router()
-
 const Material = require('../models/Material')
 const { uploadField } = require('../middleware/upload')
 const { protect } = require('../middleware/auth')
@@ -10,10 +9,17 @@ router.post('/upload', protect, ...uploadField('file', 'fuask-connect/materials'
     if (!req.file) {
       return res.status(400).json({ success: false, error: 'No file was uploaded' })
     }
+    const { title, courseCode, isPrivate, scope, groupId } = req.body
 
-    const { title, courseCode } = req.body
     if (!title) {
       return res.status(400).json({ success: false, error: 'Title is required' })
+    }
+
+    const shared = isPrivate === 'false' || isPrivate === false
+    const materialScope = scope === 'cohort' ? 'cohort' : 'general'
+
+    if (shared && materialScope === 'cohort' && !groupId) {
+      return res.status(400).json({ success: false, error: 'groupId is required for cohort-scoped materials' })
     }
 
     const material = await Material.create({
@@ -22,7 +28,10 @@ router.post('/upload', protect, ...uploadField('file', 'fuask-connect/materials'
       courseCode: courseCode || null,
       fileUrl: req.file.path,
       fileType: req.file.mimetype,
-      department: req.user.department
+      department: req.user.department,
+      isPrivate: shared ? false : true,
+      scope: materialScope,
+      groupId: shared && materialScope === 'cohort' ? groupId : null
     })
 
     res.status(201).json({ success: true, message: 'Material uploaded', data: material })
@@ -42,6 +51,20 @@ router.get('/mine', protect, async (req, res) => {
   }
 })
 
+router.get('/general', protect, async (req, res) => {
+  try {
+    const materials = await Material.find({ isPrivate: false, scope: 'general' }).sort({ createdAt: -1 })
+    res.status(200).json({ success: true, count: materials.length, data: materials })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ success: false, error: 'Failed to fetch materials' })
+  }
+})
+
+// GET /materials/group/:groupId — cohort-scoped materials, membership-checked.
+// PENDING: mirroring the exact membership-verification pattern from
+// routes/posts.js GET /group/:groupId once that file is shared.
+
 router.delete('/:id', protect, async (req, res) => {
   try {
     const material = await Material.findById(req.params.id)
@@ -51,12 +74,11 @@ router.delete('/:id', protect, async (req, res) => {
     if (material.uploaderId.toString() !== req.user._id.toString()) {
       return res.status(403).json({ success: false, error: 'You can only delete your own materials' })
     }
-
     await Material.deleteOne({ _id: material._id })
     res.status(200).json({ success: true, message: 'Material deleted' })
   } catch (error) {
     console.error(error)
-    res.status(500).json({ success: false, error: 'Failed to delete material' })
+    res.status(500).json({ success: false, error: 'Failed to fetch materials' })
   }
 })
 
