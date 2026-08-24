@@ -3,6 +3,7 @@ const router = express.Router()
 const Material = require('../models/Material')
 const { uploadField } = require('../middleware/upload')
 const { protect } = require('../middleware/auth')
+const GroupMembership = require('../models/GroupMembership')
 
 router.post('/upload', protect, ...uploadField('file', 'fuask-connect/materials'), async (req, res) => {
   try {
@@ -61,9 +62,19 @@ router.get('/general', protect, async (req, res) => {
   }
 })
 
-// GET /materials/group/:groupId — cohort-scoped materials, membership-checked.
-// PENDING: mirroring the exact membership-verification pattern from
-// routes/posts.js GET /group/:groupId once that file is shared.
+router.get('/group/:groupId', protect, async (req, res) => {
+  try {
+    const membership = await GroupMembership.findOne({ groupId: req.params.groupId, userId: req.user._id })
+    if (!membership && req.user.role !== 'super_admin') {
+      return res.status(403).json({ success: false, error: 'You do not have access to this group' })
+    }
+    const materials = await Material.find({ groupId: req.params.groupId, scope: 'cohort', isPrivate: false }).sort({ createdAt: -1 })
+    res.status(200).json({ success: true, count: materials.length, data: materials })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ success: false, error: 'Failed to fetch materials' })
+  }
+})
 
 router.delete('/:id', protect, async (req, res) => {
   try {
