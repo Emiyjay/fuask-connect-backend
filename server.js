@@ -16,7 +16,19 @@ app.set('trust proxy', 1)
 app.use(helmet())
 app.use(express.json({ limit: '10mb' }))
 app.use(sanitizeBody)
-app.use(cors())
+
+const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:8081').split(',')
+app.use(cors({
+  origin: (origin, callback) => {
+    // Native app requests carry no Origin header and always pass.
+    // CORS only matters for a future browser-based (e.g. web) build.
+    if (!origin || allowedOrigins.includes(origin)) {
+      callback(null, true)
+    } else {
+      callback(new Error('Not allowed by CORS'))
+    }
+  }
+}))
 
 const globalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -25,9 +37,15 @@ const globalLimiter = rateLimit({
 })
 app.use(globalLimiter)
 
+const authLimiter = rateLimit({
+  windowMs: 60 * 1000,
+  max: 10,
+  message: { error: 'Too many auth attempts. Please wait a moment and try again.' }
+})
+
 connectDB()
 
-app.use('/api/auth', require('./routes/auth'))
+app.use('/api/auth', authLimiter, require('./routes/auth'))
 app.use('/api/admin', require('./routes/admin'))
 app.use('/api/groups', require('./routes/groups'))
 app.use('/api/social', require('./routes/social'))
