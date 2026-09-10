@@ -20,8 +20,6 @@ app.use(sanitizeBody)
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || 'http://localhost:8081').split(',')
 app.use(cors({
   origin: (origin, callback) => {
-    // Native app requests carry no Origin header and always pass.
-    // CORS only matters for a future browser-based (e.g. web) build.
     if (!origin || allowedOrigins.includes(origin)) {
       callback(null, true)
     } else {
@@ -55,6 +53,7 @@ app.use('/api/lostfound', require('./routes/lostfound'))
 app.use('/api/marketplace', require('./routes/marketplace'))
 app.use('/api/posts', require('./routes/posts'))
 app.use('/api/timetable', require('./routes/timetable'))
+app.use('/api/timetable-admin', require('./routes/timetable-admin'))
 
 app.get('/', (req, res) => {
   res.json({
