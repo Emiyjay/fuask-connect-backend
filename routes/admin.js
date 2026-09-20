@@ -2,6 +2,9 @@ const express = require('express')
 const router = express.Router()
 
 const User = require('../models/User')
+const Business = require('../models/Business')
+const Timetable = require('../models/Timetable')
+const Announcement = require('../models/Announcement')
 const { protect } = require('../middleware/auth')
 const { syncStaffGroups } = require('../utils/groupSync')
 
@@ -18,6 +21,39 @@ function onlySuperAdmin(req, res, next) {
   }
   next()
 }
+
+router.get('/overview', protect, async (req, res) => {
+  try {
+    if (!['hod', 'dpr', 'dean', 'super_admin'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, error: 'Not authorized to view administrative statistics' })
+    }
+
+    const base = req.user.role === 'hod' ? { deptCode: req.user.deptCode } : {}
+    const [users, activeUsers, businesses, pendingBusinesses, timetableEntries, announcements] = await Promise.all([
+      User.countDocuments({ ...base }),
+      User.countDocuments({ ...base, accountStatus: 'active' }),
+      Business.countDocuments(),
+      Business.countDocuments({ status: 'pending' }),
+      Timetable.countDocuments(base),
+      Announcement.countDocuments(req.user.role === 'hod' ? { deptCode: req.user.deptCode } : {})
+    ])
+
+    res.json({
+      success: true,
+      data: {
+        users,
+        activeUsers,
+        businesses,
+        pendingBusinesses,
+        timetableEntries,
+        announcements
+      }
+    })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ success: false, error: 'Failed to load administrative overview' })
+  }
+})
 
 router.patch('/users/:id/status', protect, canManageStatus, async (req, res) => {
   try {
@@ -71,7 +107,7 @@ router.patch('/users/:id/promote', protect, onlySuperAdmin, async (req, res) => 
     }
 
     targetUser.role = role
-    targetUser.tokenVersion += 1 // force re-login so the new permissions take effect cleanly
+    targetUser.tokenVersion += 1
     await targetUser.save()
 
     await syncStaffGroups(targetUser)
