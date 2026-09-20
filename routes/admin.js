@@ -7,6 +7,8 @@ const Timetable = require('../models/Timetable')
 const Announcement = require('../models/Announcement')
 const { protect } = require('../middleware/auth')
 const { syncStaffGroups } = require('../utils/groupSync')
+const { recordAudit } = require('../utils/audit')
+
 
 function canManageStatus(req, res, next) {
   if (!['hod', 'super_admin'].includes(req.user.role)) {
@@ -21,6 +23,24 @@ function onlySuperAdmin(req, res, next) {
   }
   next()
 }
+
+router.get('/audit', protect, async (req, res) => {
+  try {
+    if (!['hod', 'dpr', 'dean', 'super_admin'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, error: 'Not authorized to view audit logs' })
+    }
+    const AuditLog = require('../models/AuditLog')
+    const filter = req.user.role === 'hod' ? { 'metadata.deptCode': req.user.deptCode } : {}
+    const logs = await AuditLog.find(filter)
+      .populate('actor', 'displayName role department')
+      .sort({ createdAt: -1 })
+      .limit(100)
+    res.json({ success: true, data: logs })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ success: false, error: 'Failed to load audit logs' })
+  }
+})
 
 router.get('/overview', protect, async (req, res) => {
   try {
@@ -77,6 +97,8 @@ router.patch('/users/:id/status', protect, canManageStatus, async (req, res) => 
     targetUser.tokenVersion += 1
     await targetUser.save()
 
+    await recordAudit({ actor: req.user._id, action: 'user.status.updated', targetType: 'User', targetId: targetUser._id, metadata: { accountStatus, deptCode: targetUser.deptCode } })
+
     res.status(200).json({
       success: true,
       message: `Status updated to "${accountStatus}"`,
@@ -111,6 +133,8 @@ router.patch('/users/:id/promote', protect, onlySuperAdmin, async (req, res) => 
     await targetUser.save()
 
     await syncStaffGroups(targetUser)
+
+    await recordAudit({ actor: req.user._id, action: 'user.role.updated', targetType: 'User', targetId: targetUser._id, metadata: { role, deptCode: targetUser.deptCode } })
 
     res.status(200).json({
       success: true,
