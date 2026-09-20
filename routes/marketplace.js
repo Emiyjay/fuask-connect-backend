@@ -4,6 +4,7 @@ const router = express.Router()
 const Business = require('../models/Business')
 const { uploadField } = require('../middleware/upload')
 const { protect } = require('../middleware/auth')
+const { recordAudit } = require('../utils/audit')
 
 function canVerifyBusiness(req, res, next) {
   if (!['dpr', 'super_admin'].includes(req.user.role)) {
@@ -104,6 +105,8 @@ router.patch('/businesses/:id/verify', protect, canVerifyBusiness, async (req, r
     business.rejectionReason = decision === 'rejected' ? (rejectionReason || 'Not specified') : null
     await business.save()
 
+    await recordAudit({ actor: req.user._id, action: 'business.verification.updated', targetType: 'Business', targetId: business._id, metadata: { decision, status: business.status } })
+
     res.status(200).json({ success: true, message: 'Business ' + decision, data: business })
   } catch (error) {
     console.error(error)
@@ -136,6 +139,8 @@ router.patch('/businesses/:id/feature', protect, canManagePromotion, async (req,
     }
 
     await business.save()
+
+    await recordAudit({ actor: req.user._id, action: 'business.promotion.updated', targetType: 'Business', targetId: business._id, metadata: { promotionTier: business.promotionTier, featuredUntil: business.featuredUntil } })
 
     res.status(200).json({
       success: true,
