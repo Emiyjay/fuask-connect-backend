@@ -34,6 +34,7 @@ connectDB()
 
 app.use('/api/auth', authLimiter, require('./routes/auth'))
 app.use('/api/admin', require('./routes/admin'))
+app.use('/api/announcements', require('./routes/announcements'))
 app.use('/api/groups', require('./routes/groups'))
 app.use('/api/social', require('./routes/social'))
 app.use('/api/materials', require('./routes/materials'))
