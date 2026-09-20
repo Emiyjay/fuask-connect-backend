@@ -39,6 +39,8 @@ const userSchema = new mongoose.Schema({
   isVerified: { type: Boolean, default: false },
   verificationOTP: { type: String, select: false },
   verificationOTPExpiry: { type: Date, select: false },
+  tokenVersion: { type: Number, default: 0 },
+  publicKey: { type: String, default: null },
   fcmToken: { type: String, default: null },
   lastActive: { type: Date, default: Date.now }
 }, {
