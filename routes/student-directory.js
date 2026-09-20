@@ -19,6 +19,43 @@ function buildScope(user) {
   return {}
 }
 
+router.get('/:id', protect, canViewDirectory, async (req, res) => {
+  try {
+    const student = await User.findOne({
+      _id: req.params.id,
+      role: 'student',
+      ...buildScope(req.user)
+    }).select('displayName matricNumber department faculty facultyCode deptCode enrollmentYear programDuration accountStatus isVerified createdAt lastActive')
+
+    if (!student) {
+      return res.status(404).json({ success: false, error: 'Student not found in your administrative scope' })
+    }
+
+    res.json({
+      success: true,
+      data: {
+        id: student._id,
+        displayName: student.displayName,
+        matricNumber: student.matricNumber,
+        department: student.department,
+        faculty: student.faculty,
+        facultyCode: student.facultyCode,
+        deptCode: student.deptCode,
+        level: student.level,
+        enrollmentYear: student.enrollmentYear,
+        programDuration: student.programDuration,
+        accountStatus: student.accountStatus,
+        isVerified: student.isVerified,
+        createdAt: student.createdAt,
+        lastActive: student.lastActive
+      }
+    })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ success: false, error: 'Failed to load student record' })
+  }
+})
+
 router.get('/', protect, canViewDirectory, async (req, res) => {
   try {
     const q = String(req.query.q || '').trim()
