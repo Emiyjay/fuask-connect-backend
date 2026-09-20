@@ -12,6 +12,13 @@ function canVerifyBusiness(req, res, next) {
   next()
 }
 
+function canManagePromotion(req, res, next) {
+  if (!['dpr', 'super_admin'].includes(req.user.role)) {
+    return res.status(403).json({ success: false, error: 'Not authorized to manage marketplace promotion' })
+  }
+  next()
+}
+
 router.post('/businesses', protect, ...uploadField('image', 'fuask-connect/businesses'), async (req, res) => {
   try {
     const { name, description, category, location, contactPhone, contactWhatsapp } = req.body
@@ -22,12 +29,12 @@ router.post('/businesses', protect, ...uploadField('image', 'fuask-connect/busin
 
     const business = await Business.create({
       submittedBy: req.user._id,
-      name,
-      description,
-      category: category || 'other',
-      location,
-      contactPhone,
-      contactWhatsapp: contactWhatsapp || null,
+      name: String(name).trim(),
+      description: String(description).trim(),
+      category: category ? String(category).trim() : 'other',
+      location: String(location).trim(),
+      contactPhone: String(contactPhone).trim(),
+      contactWhatsapp: contactWhatsapp ? String(contactWhatsapp).trim() : null,
       imageUrl: req.file ? req.file.path : null
     })
 
@@ -45,12 +52,21 @@ router.post('/businesses', protect, ...uploadField('image', 'fuask-connect/busin
 router.get('/businesses', protect, async (req, res) => {
   try {
     const { category } = req.query
+    const now = new Date()
     const filter = { status: 'approved' }
     if (category) filter.category = category
 
-    const businesses = await Business.find(filter).sort({ createdAt: -1 })
+    const businesses = await Business.find(filter)
+      .sort({ promotionTier: -1, featuredUntil: -1, createdAt: -1 })
 
-    res.status(200).json({ success: true, count: businesses.length, data: businesses })
+    const data = businesses.map((business) => {
+      const item = business.toObject()
+      item.isFeatured = item.promotionTier === 'featured' && business.featuredUntil && business.featuredUntil > now
+      if (!item.isFeatured) item.promotionTier = 'free'
+      return item
+    })
+
+    res.status(200).json({ success: true, count: data.length, data })
   } catch (error) {
     console.error(error)
     res.status(500).json({ success: false, error: 'Failed to fetch businesses' })
@@ -84,13 +100,51 @@ router.patch('/businesses/:id/verify', protect, canVerifyBusiness, async (req, r
 
     business.status = decision
     business.verifiedBy = req.user._id
+    business.verifiedAt = decision === 'approved' ? new Date() : null
     business.rejectionReason = decision === 'rejected' ? (rejectionReason || 'Not specified') : null
     await business.save()
 
-    res.status(200).json({ success: true, message: `Business ${decision}`, data: business })
+    res.status(200).json({ success: true, message: 'Business ' + decision, data: business })
   } catch (error) {
     console.error(error)
     res.status(500).json({ success: false, error: 'Failed to verify business' })
+  }
+})
+
+router.patch('/businesses/:id/feature', protect, canManagePromotion, async (req, res) => {
+  try {
+    const { enabled, days } = req.body
+
+    const business = await Business.findById(req.params.id)
+    if (!business) {
+      return res.status(404).json({ success: false, error: 'Business not found' })
+    }
+    if (business.status !== 'approved') {
+      return res.status(400).json({ success: false, error: 'Only approved businesses can be featured' })
+    }
+
+    if (enabled === true) {
+      const duration = Number(days)
+      if (!Number.isInteger(duration) || duration < 1 || duration > 30) {
+        return res.status(400).json({ success: false, error: 'days must be an integer from 1 to 30' })
+      }
+      business.promotionTier = 'featured'
+      business.featuredUntil = new Date(Date.now() + duration * 24 * 60 * 60 * 1000)
+    } else {
+      business.promotionTier = 'free'
+      business.featuredUntil = null
+    }
+
+    await business.save()
+
+    res.status(200).json({
+      success: true,
+      message: business.promotionTier === 'featured' ? 'Business featured' : 'Business promotion removed',
+      data: business
+    })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({ success: false, error: 'Failed to update marketplace promotion' })
   }
 })
 
@@ -108,7 +162,10 @@ router.get('/businesses/:id', protect, async (req, res) => {
       return res.status(403).json({ success: false, error: 'This business has not been verified yet' })
     }
 
-    res.status(200).json({ success: true, data: business })
+    const item = business.toObject()
+    item.isFeatured = business.promotionTier === 'featured' && business.featuredUntil && business.featuredUntil > new Date()
+
+    res.status(200).json({ success: true, data: item })
   } catch (error) {
     console.error(error)
     res.status(500).json({ success: false, error: 'Failed to fetch business' })
