@@ -42,7 +42,7 @@ router.get('/', protect, canViewDirectory, async (req, res) => {
     }
 
     if (q.length >= 2) {
-      const escaped = q.replace(/[.*+?^{}()|[\\]\\]/g, '\\$&')
+      const escaped = q.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
       const pattern = new RegExp(escaped, 'i')
       filter.$or = [
         { displayName: pattern },
