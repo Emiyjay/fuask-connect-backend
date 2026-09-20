@@ -2,7 +2,7 @@ const express = require('express')
 const router = express.Router()
 
 const Announcement = require('../models/Announcement')
-const User = require('../models/User')
+const { recordAudit } = require('../utils/audit')
 const { protect } = require('../middleware/auth')
 
 const STAFF_ROLES = ['hod', 'dean', 'dpr', 'super_admin']
@@ -105,6 +105,8 @@ router.post('/', protect, canPublish, async (req, res) => {
       createdBy: req.user._id
     })
 
+    await recordAudit({ actor: req.user._id, action: 'announcement.created', targetType: 'Announcement', targetId: announcement._id, metadata: { audience, deptCode: announcement.deptCode, facultyCode: announcement.facultyCode } })
+
     res.status(201).json({ success: true, data: announcement })
   } catch (error) {
     console.error(error)
@@ -119,6 +121,8 @@ router.delete('/:id', protect, canPublish, async (req, res) => {
 
     const deleted = await Announcement.findOneAndDelete(filter)
     if (!deleted) return res.status(404).json({ success: false, error: 'Announcement not found' })
+
+    await recordAudit({ actor: req.user._id, action: 'announcement.deleted', targetType: 'Announcement', targetId: deleted._id, metadata: { deptCode: deleted.deptCode } })
 
     res.json({ success: true, message: 'Announcement removed' })
   } catch (error) {
