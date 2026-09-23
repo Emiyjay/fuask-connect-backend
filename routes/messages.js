@@ -81,7 +81,13 @@ router.get('/public-key/:userId', protect, async (req, res) => {
 
 router.post('/', protect, messageLimiter, async (req, res) => {
   try {
-    const { receiverId, ciphertext, nonce } = req.body
+    const {
+      receiverId,
+      ciphertext,
+      nonce,
+      senderCiphertext,
+      senderNonce
+    } = req.body
 
     if (!receiverId || !ciphertext || !nonce) {
       return res.status(400).json({
@@ -132,6 +138,47 @@ router.post('/', protect, messageLimiter, async (req, res) => {
       })
     }
 
+    if (
+      senderCiphertext !== undefined &&
+      (typeof senderCiphertext !== 'string' || !senderCiphertext.trim())
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'senderCiphertext must be a non-empty string when provided'
+      })
+    }
+
+    if (
+      senderNonce !== undefined &&
+      (typeof senderNonce !== 'string' || !senderNonce.trim())
+    ) {
+      return res.status(400).json({
+        success: false,
+        error: 'senderNonce must be a non-empty string when provided'
+      })
+    }
+
+    if (senderCiphertext !== undefined && senderCiphertext.length > MAX_CIPHERTEXT_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        error: 'Sender encrypted message is too large'
+      })
+    }
+
+    if (senderNonce !== undefined && senderNonce.length > MAX_NONCE_LENGTH) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid sender nonce'
+      })
+    }
+
+    if ((senderCiphertext === undefined) !== (senderNonce === undefined)) {
+      return res.status(400).json({
+        success: false,
+        error: 'senderCiphertext and senderNonce must be provided together'
+      })
+    }
+
     const receiver = await User.findById(receiverId).select('_id displayName fcmToken')
 
     if (!receiver) {
@@ -157,11 +204,15 @@ router.post('/', protect, messageLimiter, async (req, res) => {
       senderId: req.user._id,
       receiverId,
       ciphertext: ciphertext.trim(),
-      nonce: nonce.trim()
+      nonce: nonce.trim(),
+      senderCiphertext: senderCiphertext?.trim() || null,
+      senderNonce: senderNonce?.trim() || null
     })
 
     // The server never receives plaintext.
-    // The push notification contains no message content.
+    // Both ciphertext copies are encrypted on the client:
+    // one for the recipient and one for the sender's own device.
+    // Push notification contains no message content.
     if (receiver.fcmToken) {
       sendPushNotification(
         receiver.fcmToken,
