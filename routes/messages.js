@@ -367,6 +367,44 @@ router.post('/:id/report', protect, async (req, res) => {
   }
 })
 
+router.get('/:userId/block', protect, async (req, res) => {
+  try {
+    const { userId } = req.params
+
+    if (!isValidObjectId(userId)) {
+      return res.status(400).json({
+        success: false,
+        error: 'Invalid user ID'
+      })
+    }
+
+    if (userId === req.user._id.toString()) {
+      return res.status(400).json({
+        success: false,
+        error: 'You cannot check your own block status'
+      })
+    }
+
+    const blocked = await Block.exists({
+      blockerId: req.user._id,
+      blockedUserId: userId
+    })
+
+    res.status(200).json({
+      success: true,
+      data: {
+        blocked: Boolean(blocked)
+      }
+    })
+  } catch (error) {
+    console.error(error)
+    res.status(500).json({
+      success: false,
+      error: 'Failed to check block status'
+    })
+  }
+})
+
 router.post('/:userId/block', protect, async (req, res) => {
   try {
     const { userId } = req.params
