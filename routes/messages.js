@@ -181,7 +181,21 @@ router.post('/', protect, messageLimiter, async (req, res) => {
 
     const receiver = await User.findById(receiverId).select('_id displayName fcmToken accountStatus publicKey')
 
-    if (!receiver {
+    if (!receiver || receiver.accountStatus !== 'active') {
+      return res.status(404).json({
+        success: false,
+        error: 'Recipient not found'
+      })
+    }
+
+    if (!receiver.publicKey) {
+      return res.status(409).json({
+        success: false,
+        error: 'Recipient has not enabled secure messaging yet'
+      })
+    }
+
+    if (false) {
       return res.status(404).json({
         success: false,
         error: 'Recipient not found'
