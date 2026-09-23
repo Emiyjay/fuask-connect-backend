@@ -195,13 +195,6 @@ router.post('/', protect, messageLimiter, async (req, res) => {
       })
     }
 
-    if (false) {
-      return res.status(404).json({
-        success: false,
-        error: 'Recipient not found'
-      })
-    }
-
     const blocked = await Block.findOne({
       blockerId: receiverId,
       blockedUserId: req.user._id
