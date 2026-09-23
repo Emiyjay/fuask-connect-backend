@@ -5,6 +5,8 @@ const messageSchema = new mongoose.Schema({
   receiverId: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
   ciphertext: { type: String, required: true },
   nonce: { type: String, required: true },
+  senderCiphertext: { type: String, default: null },
+  senderNonce: { type: String, default: null },
   isRead: { type: Boolean, default: false }
 }, { timestamps: true })
 
