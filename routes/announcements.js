@@ -77,6 +77,10 @@ router.post('/', protect, canPublish, async (req, res) => {
       return res.status(400).json({ success: false, error: 'Invalid audience' })
     }
 
+    if (audience === 'all' && !['dpr', 'super_admin'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, error: 'Only DPR or super_admin can publish global announcements' })
+    }
+
     const targetDept = audience === 'department' || audience === 'level'
       ? (req.user.role === 'hod' ? req.user.deptCode : deptCode)
       : null
