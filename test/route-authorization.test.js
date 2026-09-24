@@ -191,14 +191,14 @@ test('route authorization boundaries reject cross-scope and unauthorized request
   )
   assert.equal(announcementFacultyCrossDean.status, 403)
 
-  const announcementDepartmentCrossHod = await requestRoute(
+  const announcementDepartmentCrossDean = await requestRoute(
     '../routes/announcements',
-    cseHod,
+    cpcDean,
     'POST',
     '/',
-    { title: 'Test', body: 'Test', audience: 'department', deptCode: 'SE' }
+    { title: 'Test', body: 'Test', audience: 'department', deptCode: 'MBBS' }
   )
-  assert.equal(announcementDepartmentCrossHod.status, 403)
+  assert.equal(announcementDepartmentCrossDean.status, 403)
 
   const announcementLevelCrossDean = await requestRoute(
     '../routes/announcements',
