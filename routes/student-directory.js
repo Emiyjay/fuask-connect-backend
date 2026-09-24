@@ -82,6 +82,10 @@ router.get('/', protect, canViewDirectory, async (req, res) => {
       filter.accountStatus = status
     }
 
+    if (level) {
+      filter.level = Number(level)
+    }
+
     if (q.length >= 2) {
       const escaped = q.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
       const pattern = new RegExp(escaped, 'i')
