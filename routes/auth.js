@@ -12,6 +12,7 @@ const validatePassword = require('../utils/validatePassword')
 const { sendOTPEmail } = require('../utils/sendEmail')
 const { syncStudentGroups, syncStaffGroups } = require('../utils/groupSync')
 const { protect } = require('../middleware/auth')
+const { getDepartmentByCode } = require('../utils/validateMatric')
 
 const authLimiter = rateLimit({
   windowMs: 60 * 60 * 1000,
@@ -115,8 +116,17 @@ router.post('/register/staff', authLimiter, async (req, res) => {
       return res.status(400).json({ success: false, error: phoneResult.error })
     }
 
-    if (!department || !faculty || !deptCode || !facultyCode) {
-      return res.status(400).json({ success: false, error: 'Department and faculty information required' })
+    if (!deptCode || typeof deptCode !== 'string') {
+      return res.status(400).json({ success: false, error: 'Valid department code is required' })
+    }
+
+    const canonicalDepartment = getDepartmentByCode(deptCode)
+    if (!canonicalDepartment) {
+      return res.status(400).json({ success: false, error: 'Unknown department code' })
+    }
+
+    if (facultyCode && typeof facultyCode === 'string' && facultyCode.trim().toUpperCase() !== canonicalDepartment.facultyCode) {
+      return res.status(400).json({ success: false, error: 'Department and faculty codes do not match' })
     }
 
     const existingPhone = await User.findOne({ phoneNumber: phoneResult.phoneNumber })
@@ -137,10 +147,10 @@ router.post('/register/staff', authLimiter, async (req, res) => {
       email: email.toLowerCase(),
       passwordHash,
       displayName,
-      department,
-      faculty,
-      facultyCode,
-      deptCode,
+      department: canonicalDepartment.department,
+      faculty: canonicalDepartment.faculty,
+      facultyCode: canonicalDepartment.facultyCode,
+      deptCode: canonicalDepartment.deptCode,
       role: 'lecturer',
       verificationOTP: otpHash,
       verificationOTPExpiry: new Date(Date.now() + 10 * 60 * 1000)
