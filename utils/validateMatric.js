@@ -62,4 +62,33 @@ function validateMatric(matricNumber) {
   }
 }
 
+function getDepartmentByCode(deptCode) {
+  if (typeof deptCode !== 'string') return null
+  const normalized = deptCode.trim().toUpperCase()
+  const entry = Object.entries(FUASK_DEPARTMENTS).find(([, info]) => normalized === info.deptCode)
+  if (entry) return { deptCode: normalized, ...entry[1] }
+  const matchingKey = Object.keys(FUASK_DEPARTMENTS).find(key => key.endsWith(`/${normalized}`))
+  if (!matchingKey) return null
+  const info = FUASK_DEPARTMENTS[matchingKey]
+  return { deptCode: normalized, ...info }
+}
+
+function getFacultyByCode(facultyCode) {
+  if (typeof facultyCode !== 'string') return null
+  const normalized = facultyCode.trim().toUpperCase()
+  const entry = Object.values(FUASK_DEPARTMENTS).find(info => info.facultyCode === normalized)
+  if (!entry) return null
+  return { facultyCode: normalized, faculty: entry.faculty }
+}
+
+function isValidDepartmentFacultyPair(deptCode, facultyCode) {
+  const department = getDepartmentByCode(deptCode)
+  if (!department || typeof facultyCode !== 'string') return false
+  return department.facultyCode === facultyCode.trim().toUpperCase()
+}
+
 module.exports = validateMatric
+module.exports.FUASK_DEPARTMENTS = FUASK_DEPARTMENTS
+module.exports.getDepartmentByCode = getDepartmentByCode
+module.exports.getFacultyByCode = getFacultyByCode
+module.exports.isValidDepartmentFacultyPair = isValidDepartmentFacultyPair
