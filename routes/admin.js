@@ -168,6 +168,7 @@ router.patch('/users/:id/promote', protect, onlySuperAdmin, async (req, res) => 
 
       targetUser.facultyCode = faculty.facultyCode
       targetUser.faculty = faculty.faculty
+      targetUser.department = null
       targetUser.deptCode = null
     } else {
       targetUser.deptCode = null
