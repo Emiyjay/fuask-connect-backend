@@ -1,4 +1,5 @@
 const express = require('express')
+const mongoose = require('mongoose')
 const router = express.Router()
 
 const User = require('../models/User')
@@ -84,9 +85,17 @@ router.patch('/users/:id/status', protect, canManageStatus, async (req, res) => 
       return res.status(400).json({ success: false, error: 'Invalid status value' })
     }
 
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID' })
+    }
+
     const targetUser = await User.findById(req.params.id)
     if (!targetUser) {
       return res.status(404).json({ success: false, error: 'User not found' })
+    }
+
+    if (targetUser.role !== 'student') {
+      return res.status(403).json({ success: false, error: 'Only student accounts can have their account status managed here' })
     }
 
     if (req.user.role === 'hod' && targetUser.deptCode !== req.user.deptCode) {
