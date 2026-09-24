@@ -2,6 +2,7 @@ const express = require('express')
 const router = express.Router()
 
 const User = require('../models/User')
+const { getEnrollmentYearForLevel } = require('../utils/academicSession')
 const { protect } = require('../middleware/auth')
 
 const STAFF_ROLES = ['hod', 'dean', 'super_admin']
@@ -83,11 +84,15 @@ router.get('/', protect, canViewDirectory, async (req, res) => {
     }
 
     if (level) {
-      filter.level = Number(level)
+      const enrollmentYear = getEnrollmentYearForLevel(level)
+      if (enrollmentYear === null) {
+        return res.status(400).json({ success: false, error: 'Invalid level filter' })
+      }
+      filter.enrollmentYear = enrollmentYear
     }
 
     if (q.length >= 2) {
-      const escaped = q.replace(/[.*+?^${}()|[\\]\\]/g, '\\$&')
+      const escaped = q.replace(/[.*+?^\$\{\}()|[\\]\\]/g, '\\$&')
       const pattern = new RegExp(escaped, 'i')
       filter.$or = [
         { displayName: pattern },
