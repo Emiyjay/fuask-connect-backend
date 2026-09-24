@@ -4,6 +4,7 @@ const router = express.Router()
 const Announcement = require('../models/Announcement')
 const { recordAudit } = require('../utils/audit')
 const { protect } = require('../middleware/auth')
+const { getDepartmentByCode, getFacultyByCode } = require('../utils/validateMatric')
 const mongoose = require('mongoose')
 
 const STAFF_ROLES = ['hod', 'dean', 'dpr', 'super_admin']
@@ -17,7 +18,6 @@ function canManageAnnouncement(user, announcement) {
       const department = getDepartmentByCode(announcement.deptCode)
       return Boolean(department && department.facultyCode === user.facultyCode)
     }
-    return announcement.audience === 'all'
   }
   return false
 }
@@ -64,9 +64,12 @@ router.get('/', protect, async (req, res) => {
 
 router.get('/manage', protect, canPublish, async (req, res) => {
   try {
-    const filter = req.user.role === 'hod'
-      ? { deptCode: req.user.deptCode }
-      : {}
+    let filter = {}
+    if (req.user.role === 'hod') {
+      filter = { deptCode: req.user.deptCode }
+    } else if (req.user.role === 'dean') {
+      filter = { facultyCode: req.user.facultyCode }
+    }
 
     const announcements = await Announcement.find(filter)
       .populate('createdBy', 'displayName role')
@@ -90,10 +93,6 @@ router.post('/', protect, canPublish, async (req, res) => {
 
     if (!['all', 'faculty', 'department', 'level'].includes(audience)) {
       return res.status(400).json({ success: false, error: 'Invalid audience' })
-    }
-
-    if (audience === 'all' && !['dpr', 'super_admin'].includes(req.user.role)) {
-      return res.status(403).json({ success: false, error: 'Only DPR or super_admin can publish global announcements' })
     }
 
     if (audience === 'all' && !['dpr', 'super_admin'].includes(req.user.role)) {
