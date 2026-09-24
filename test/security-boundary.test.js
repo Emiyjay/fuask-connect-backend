@@ -78,8 +78,8 @@ test('Dean requires faculty scope but not department scope', () => {
     faculty: 'Faculty of Computing and Communication',
     facultyCode: 'CPC'
   })
-  const errors = user.validateSync().errors
-  assert.equal(errors.department, undefined)
+  const validationError = user.validateSync()
+  assert.equal(validationError, undefined)
   assert.equal(errors.deptCode, undefined)
   assert.equal(errors.facultyCode, undefined)
   assert.equal(errors.faculty, undefined)
@@ -93,10 +93,7 @@ test('non-scoped staff roles do not require department or faculty scope', () => 
       facultyCode: undefined,
       deptCode: undefined
     })
-    const errors = user.validateSync().errors
-    assert.equal(errors.department, undefined, role)
-    assert.equal(errors.faculty, undefined, role)
-    assert.equal(errors.facultyCode, undefined, role)
-    assert.equal(errors.deptCode, undefined, role)
+    const validationError = user.validateSync()
+    assert.equal(validationError, undefined, role)
   }
 })
