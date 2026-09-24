@@ -1,9 +1,15 @@
 const { Resend } = require('resend')
+
 const resend = new Resend(process.env.RESEND_API_KEY)
 
+function getRecipientDomain(email) {
+  const [, domain] = String(email).split('@')
+  return domain || 'unknown'
+}
+
 async function sendOTPEmail(toEmail, otp, displayName) {
-  await resend.emails.send({
-    from: 'FUASK Connect <onboarding@resend.dev>', // swap once your domain is verified — see note below
+  const { data, error } = await resend.emails.send({
+    from: 'FUASK Connect <onboarding@resend.dev>', // swap once your domain is verified
     to: toEmail,
     subject: 'Verify your FUASK Connect account',
     html: `
@@ -15,6 +21,21 @@ async function sendOTPEmail(toEmail, otp, displayName) {
       </div>
     `
   })
+
+  if (error) {
+    console.error('OTP email delivery request failed', {
+      recipientDomain: getRecipientDomain(toEmail),
+      error: error.message || error.name || String(error)
+    })
+    throw new Error('OTP email delivery failed')
+  }
+
+  console.info('OTP email accepted by email provider', {
+    recipientDomain: getRecipientDomain(toEmail),
+    messageId: data?.id || null
+  })
+
+  return data
 }
 
 module.exports = { sendOTPEmail }
