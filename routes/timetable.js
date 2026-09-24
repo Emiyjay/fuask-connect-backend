@@ -81,7 +81,7 @@ router.post('/', protect, isOwnDeptHOD, async (req, res) => {
       createdBy: req.user._id
     })
 
-    notifyLevelStudents(deptCode, level, 'Timetable updated', `${courseCode} added — ${dayOfWeek} ${startTime}, ${venue}`)
+    notifyLevelStudents(department.deptCode, level, 'Timetable updated', `${courseCode} added — ${dayOfWeek} ${startTime}, ${venue}`)
 
     res.status(201).json({ success: true, message: 'Class added to timetable', data: entry })
   } catch (error) {
@@ -205,7 +205,7 @@ router.post('/exams', protect, isOwnDeptHOD, async (req, res) => {
       createdBy: req.user._id
     })
 
-    notifyLevelStudents(deptCode, level, 'New exam scheduled', `${courseCode} exam on ${new Date(examDate).toDateString()}`)
+    notifyLevelStudents(department.deptCode, level, 'New exam scheduled', `${courseCode} exam on ${new Date(examDate).toDateString()}`)
 
     res.status(201).json({ success: true, message: 'Exam scheduled', data: exam })
   } catch (error) {
