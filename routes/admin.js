@@ -122,7 +122,7 @@ router.patch('/users/:id/status', protect, canManageStatus, async (req, res) => 
 // SECURITY: this is the ONLY way a staff account can gain hod/dean/dpr/sug/super_admin authority
 router.patch('/users/:id/promote', protect, onlySuperAdmin, async (req, res) => {
   try {
-    const { role } = req.body
+    const { role, deptCode, facultyCode, department, faculty } = req.body
     const allowedRoles = ['lecturer', 'hod', 'dean', 'sug', 'dpr', 'super_admin']
 
     if (!allowedRoles.includes(role)) {
@@ -135,6 +135,36 @@ router.patch('/users/:id/promote', protect, onlySuperAdmin, async (req, res) => 
     }
     if (targetUser.role === 'student') {
       return res.status(400).json({ success: false, error: 'Students cannot be promoted directly � they must register as staff first' })
+    }
+
+    const scopedRole = ['hod', 'dean'].includes(role)
+
+    if (scopedRole) {
+      if (!deptCode && role === 'hod') {
+        return res.status(400).json({ success: false, error: 'deptCode is required when assigning HOD role' })
+      }
+      if (!facultyCode && role === 'dean') {
+        return res.status(400).json({ success: false, error: 'facultyCode is required when assigning Dean role' })
+      }
+
+      if (deptCode && typeof deptCode !== 'string') {
+        return res.status(400).json({ success: false, error: 'Invalid deptCode' })
+      }
+      if (facultyCode && typeof facultyCode !== 'string') {
+        return res.status(400).json({ success: false, error: 'Invalid facultyCode' })
+      }
+
+      if (deptCode) targetUser.deptCode = deptCode.trim().toUpperCase()
+      if (facultyCode) targetUser.facultyCode = facultyCode.trim().toUpperCase()
+      if (department) targetUser.department = String(department).trim()
+      if (faculty) targetUser.faculty = String(faculty).trim()
+
+      if (role === 'hod' && !targetUser.deptCode) {
+        return res.status(400).json({ success: false, error: 'HOD must have an assigned department' })
+      }
+      if (role === 'dean' && !targetUser.facultyCode) {
+        return res.status(400).json({ success: false, error: 'Dean must have an assigned faculty' })
+      }
     }
 
     targetUser.role = role
