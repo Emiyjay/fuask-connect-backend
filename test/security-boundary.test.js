@@ -74,7 +74,9 @@ test('lecturer and HOD require department and faculty scope', () => {
 test('Dean requires faculty scope but not department scope', () => {
   const user = baseUser('dean', {
     department: undefined,
-    deptCode: undefined
+    deptCode: undefined,
+    faculty: 'Faculty of Computing and Communication',
+    facultyCode: 'CPC'
   })
   const errors = user.validateSync().errors
   assert.equal(errors.department, undefined)
