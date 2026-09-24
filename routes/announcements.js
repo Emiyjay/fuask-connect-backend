@@ -4,8 +4,23 @@ const router = express.Router()
 const Announcement = require('../models/Announcement')
 const { recordAudit } = require('../utils/audit')
 const { protect } = require('../middleware/auth')
+const mongoose = require('mongoose')
 
 const STAFF_ROLES = ['hod', 'dean', 'dpr', 'super_admin']
+
+function canManageAnnouncement(user, announcement) {
+  if (['dpr', 'super_admin'].includes(user.role)) return true
+  if (user.role === 'hod') return announcement.deptCode === user.deptCode
+  if (user.role === 'dean') {
+    if (announcement.facultyCode) return announcement.facultyCode === user.facultyCode
+    if (announcement.deptCode) {
+      const department = getDepartmentByCode(announcement.deptCode)
+      return Boolean(department && department.facultyCode === user.facultyCode)
+    }
+    return announcement.audience === 'all'
+  }
+  return false
+}
 
 function canPublish(req, res, next) {
   if (!STAFF_ROLES.includes(req.user.role)) {
@@ -81,6 +96,10 @@ router.post('/', protect, canPublish, async (req, res) => {
       return res.status(403).json({ success: false, error: 'Only DPR or super_admin can publish global announcements' })
     }
 
+    if (audience === 'all' && !['dpr', 'super_admin'].includes(req.user.role)) {
+      return res.status(403).json({ success: false, error: 'Only DPR or super_admin can publish global announcements' })
+    }
+
     const targetDept = audience === 'department' || audience === 'level'
       ? (req.user.role === 'hod' ? req.user.deptCode : deptCode)
       : null
@@ -89,8 +108,33 @@ router.post('/', protect, canPublish, async (req, res) => {
       return res.status(400).json({ success: false, error: 'deptCode is required for this audience' })
     }
 
-    if (req.user.role === 'hod' && targetDept !== req.user.deptCode) {
-      return res.status(403).json({ success: false, error: 'HOD announcements are limited to their department' })
+    let canonicalDepartment = null
+    if (targetDept) {
+      canonicalDepartment = getDepartmentByCode(targetDept)
+      if (!canonicalDepartment) {
+        return res.status(400).json({ success: false, error: 'Unknown department code' })
+      }
+      if (req.user.role === 'hod' && canonicalDepartment.deptCode !== req.user.deptCode) {
+        return res.status(403).json({ success: false, error: 'HOD announcements are limited to their department' })
+      }
+      if (req.user.role === 'dean' && canonicalDepartment.facultyCode !== req.user.facultyCode) {
+        return res.status(403).json({ success: false, error: 'Dean announcements are limited to their faculty' })
+      }
+    }
+
+    let canonicalFacultyCode = null
+    if (audience === 'faculty') {
+      canonicalFacultyCode = typeof facultyCode === 'string' ? facultyCode.trim().toUpperCase() : ''
+      if (!getFacultyByCode(canonicalFacultyCode)) {
+        return res.status(400).json({ success: false, error: 'Unknown faculty code' })
+      }
+      if (['hod', 'dean'].includes(req.user.role) && canonicalFacultyCode !== req.user.facultyCode) {
+        return res.status(403).json({ success: false, error: 'You can only publish faculty announcements within your own faculty' })
+      }
+    }
+
+    if (audience === 'level' && !String(level || '').trim()) {
+      return res.status(400).json({ success: false, error: 'level is required for level announcements' })
     }
 
     const parsedExpiry = expiresAt ? new Date(expiresAt) : null
@@ -102,8 +146,8 @@ router.post('/', protect, canPublish, async (req, res) => {
       title,
       body,
       audience,
-      facultyCode: audience === 'faculty' ? facultyCode : null,
-      deptCode: targetDept,
+      facultyCode: canonicalFacultyCode,
+      deptCode: canonicalDepartment ? canonicalDepartment.deptCode : null,
       level: audience === 'level' ? String(level || '') : null,
       expiresAt: parsedExpiry,
       createdBy: req.user._id
@@ -120,11 +164,17 @@ router.post('/', protect, canPublish, async (req, res) => {
 
 router.delete('/:id', protect, canPublish, async (req, res) => {
   try {
-    const filter = { _id: req.params.id }
-    if (req.user.role === 'hod') filter.deptCode = req.user.deptCode
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'Invalid announcement ID' })
+    }
 
-    const deleted = await Announcement.findOneAndDelete(filter)
-    if (!deleted) return res.status(404).json({ success: false, error: 'Announcement not found' })
+    const announcement = await Announcement.findById(req.params.id)
+    if (!announcement) return res.status(404).json({ success: false, error: 'Announcement not found' })
+    if (!canManageAnnouncement(req.user, announcement)) {
+      return res.status(403).json({ success: false, error: 'You can only manage announcements within your scope' })
+    }
+
+    const deleted = await Announcement.findByIdAndDelete(announcement._id)
 
     await recordAudit({ actor: req.user._id, action: 'announcement.deleted', targetType: 'Announcement', targetId: deleted._id, metadata: { deptCode: deleted.deptCode } })
 
