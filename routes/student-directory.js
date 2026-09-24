@@ -25,7 +25,7 @@ router.get('/:id', protect, canViewDirectory, async (req, res) => {
       _id: req.params.id,
       role: 'student',
       ...buildScope(req.user)
-    }).select('displayName matricNumber department faculty facultyCode deptCode enrollmentYear programDuration accountStatus isVerified createdAt lastActive')
+    }).select('displayName matricNumber department faculty facultyCode deptCode level enrollmentYear programDuration accountStatus isVerified createdAt lastActive')
 
     if (!student) {
       return res.status(404).json({ success: false, error: 'Student not found in your administrative scope' })
@@ -62,6 +62,10 @@ router.get('/', protect, canViewDirectory, async (req, res) => {
     const status = String(req.query.status || '').trim()
     const level = String(req.query.level || '').trim()
 
+    if (level && !['100', '200', '300', '400', '500', '600'].includes(level)) {
+      return res.status(400).json({ success: false, error: 'Invalid level filter' })
+    }
+
     if (q.length > 80) {
       return res.status(400).json({ success: false, error: 'Search query is too long' })
     }
@@ -90,7 +94,7 @@ router.get('/', protect, canViewDirectory, async (req, res) => {
     }
 
     const students = await User.find(filter)
-      .select('displayName matricNumber department faculty deptCode enrollmentYear accountStatus isVerified createdAt')
+      .select('displayName matricNumber department faculty facultyCode deptCode level enrollmentYear accountStatus isVerified createdAt')
       .sort({ displayName: 1 })
       .limit(100)
 
@@ -107,11 +111,6 @@ router.get('/', protect, canViewDirectory, async (req, res) => {
       isVerified: student.isVerified,
       createdAt: student.createdAt
     }))
-
-    if (level) {
-      const filtered = data.filter(student => String(student.level || '') === level)
-      return res.json({ success: true, data: filtered, meta: { count: filtered.length, scope: req.user.role } })
-    }
 
     res.json({ success: true, data, meta: { count: data.length, scope: req.user.role } })
   } catch (error) {
