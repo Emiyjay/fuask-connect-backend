@@ -9,7 +9,7 @@ const { protect } = require('../middleware/auth')
 const { uploadField } = require('../middleware/upload')
 const { sendPushToMany } = require('../utils/sendPush')
 const { getEnrollmentYearForLevel } = require('../utils/academicSession')
-const { getDepartmentByCode } = require('../utils/validateMatric')
+const { getDepartmentByCode, isValidDepartmentFacultyPair } = require('../utils/validateMatric')
 const mongoose = require('mongoose')
 
 function isOwnDeptHOD(req, res, next) {
@@ -91,8 +91,18 @@ router.post('/', protect, isOwnDeptHOD, async (req, res) => {
       return res.status(400).json({ success: false, error: 'All timetable fields except lecturerName are required' })
     }
 
+    const department = getDepartmentByCode(deptCode)
+    if (!department) {
+      return res.status(400).json({ success: false, error: 'Unknown department code' })
+    }
+    if (!isValidDepartmentFacultyPair(department.deptCode, facultyCode)) {
+      return res.status(400).json({ success: false, error: 'Department and faculty code do not match' })
+    }
+
     const entry = await Timetable.create({
-      deptCode, facultyCode, level, courseCode, courseTitle, dayOfWeek, startTime, endTime, venue,
+      deptCode: department.deptCode,
+      facultyCode: department.facultyCode,
+      level, courseCode, courseTitle, dayOfWeek, startTime, endTime, venue,
       lecturerName: lecturerName || '',
       createdBy: req.user._id
     })
@@ -108,6 +118,10 @@ router.post('/', protect, isOwnDeptHOD, async (req, res) => {
 
 router.delete('/:id', protect, async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'Invalid timetable ID' })
+    }
+
     const entry = await Timetable.findById(req.params.id)
     if (!entry) {
       return res.status(404).json({ success: false, error: 'Timetable entry not found' })
@@ -215,8 +229,18 @@ router.post('/exams', protect, isOwnDeptHOD, async (req, res) => {
       return res.status(400).json({ success: false, error: 'All exam schedule fields are required' })
     }
 
+    const department = getDepartmentByCode(deptCode)
+    if (!department) {
+      return res.status(400).json({ success: false, error: 'Unknown department code' })
+    }
+    if (!isValidDepartmentFacultyPair(department.deptCode, facultyCode)) {
+      return res.status(400).json({ success: false, error: 'Department and faculty code do not match' })
+    }
+
     const exam = await ExamSchedule.create({
-      deptCode, facultyCode, level, courseCode, courseTitle,
+      deptCode: department.deptCode,
+      facultyCode: department.facultyCode,
+      level, courseCode, courseTitle,
       examDate: new Date(examDate), startTime, endTime, venue,
       createdBy: req.user._id
     })
@@ -232,6 +256,10 @@ router.post('/exams', protect, isOwnDeptHOD, async (req, res) => {
 
 router.delete('/exams/:id', protect, async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'Invalid exam ID' })
+    }
+
     const exam = await ExamSchedule.findById(req.params.id)
     if (!exam) {
       return res.status(404).json({ success: false, error: 'Exam not found' })
