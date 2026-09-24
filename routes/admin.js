@@ -1,4 +1,5 @@
 const express = require('express')
+const mongoose = require('mongoose')
 const router = express.Router()
 
 const User = require('../models/User')
@@ -8,6 +9,7 @@ const Announcement = require('../models/Announcement')
 const { protect } = require('../middleware/auth')
 const { syncStaffGroups } = require('../utils/groupSync')
 const { recordAudit } = require('../utils/audit')
+const { getDepartmentByCode, getFacultyByCode } = require('../utils/validateMatric')
 
 
 function canManageStatus(req, res, next) {
@@ -84,9 +86,17 @@ router.patch('/users/:id/status', protect, canManageStatus, async (req, res) => 
       return res.status(400).json({ success: false, error: 'Invalid status value' })
     }
 
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID' })
+    }
+
     const targetUser = await User.findById(req.params.id)
     if (!targetUser) {
       return res.status(404).json({ success: false, error: 'User not found' })
+    }
+
+    if (targetUser.role !== 'student') {
+      return res.status(403).json({ success: false, error: 'Only student accounts can have their account status managed here' })
     }
 
     if (req.user.role === 'hod' && targetUser.deptCode !== req.user.deptCode) {
@@ -113,11 +123,15 @@ router.patch('/users/:id/status', protect, canManageStatus, async (req, res) => 
 // SECURITY: this is the ONLY way a staff account can gain hod/dean/dpr/sug/super_admin authority
 router.patch('/users/:id/promote', protect, onlySuperAdmin, async (req, res) => {
   try {
-    const { role } = req.body
+    const { role, deptCode, facultyCode } = req.body
     const allowedRoles = ['lecturer', 'hod', 'dean', 'sug', 'dpr', 'super_admin']
 
     if (!allowedRoles.includes(role)) {
       return res.status(400).json({ success: false, error: 'Invalid role' })
+    }
+
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'Invalid user ID' })
     }
 
     const targetUser = await User.findById(req.params.id)
@@ -125,7 +139,42 @@ router.patch('/users/:id/promote', protect, onlySuperAdmin, async (req, res) => 
       return res.status(404).json({ success: false, error: 'User not found' })
     }
     if (targetUser.role === 'student') {
-      return res.status(400).json({ success: false, error: 'Students cannot be promoted directly � they must register as staff first' })
+      return res.status(400).json({ success: false, error: 'Students cannot be promoted directly - they must register as staff first' })
+    }
+
+    if (['lecturer', 'hod'].includes(role)) {
+      if (typeof deptCode !== 'string' || !deptCode.trim()) {
+        return res.status(400).json({ success: false, error: 'deptCode is required when assigning this role' })
+      }
+
+      const department = getDepartmentByCode(deptCode)
+      if (!department) {
+        return res.status(400).json({ success: false, error: 'Unknown department code' })
+      }
+
+      targetUser.deptCode = department.deptCode
+      targetUser.facultyCode = department.facultyCode
+      targetUser.department = department.department
+      targetUser.faculty = department.faculty
+    } else if (role === 'dean') {
+      if (typeof facultyCode !== 'string' || !facultyCode.trim()) {
+        return res.status(400).json({ success: false, error: 'facultyCode is required when assigning Dean role' })
+      }
+
+      const faculty = getFacultyByCode(facultyCode)
+      if (!faculty) {
+        return res.status(400).json({ success: false, error: 'Unknown faculty code' })
+      }
+
+      targetUser.facultyCode = faculty.facultyCode
+      targetUser.faculty = faculty.faculty
+      targetUser.department = null
+      targetUser.deptCode = null
+    } else {
+      targetUser.department = null
+      targetUser.faculty = null
+      targetUser.deptCode = null
+      targetUser.facultyCode = null
     }
 
     targetUser.role = role
@@ -134,12 +183,30 @@ router.patch('/users/:id/promote', protect, onlySuperAdmin, async (req, res) => 
 
     await syncStaffGroups(targetUser)
 
-    await recordAudit({ actor: req.user._id, action: 'user.role.updated', targetType: 'User', targetId: targetUser._id, metadata: { role, deptCode: targetUser.deptCode } })
+    await recordAudit({
+      actor: req.user._id,
+      action: 'user.role.updated',
+      targetType: 'User',
+      targetId: targetUser._id,
+      metadata: {
+        role,
+        deptCode: targetUser.deptCode,
+        facultyCode: targetUser.facultyCode
+      }
+    })
 
     res.status(200).json({
       success: true,
       message: `${targetUser.displayName} is now ${role}`,
-      data: { id: targetUser._id, displayName: targetUser.displayName, role: targetUser.role }
+      data: {
+        id: targetUser._id,
+        displayName: targetUser.displayName,
+        role: targetUser.role,
+        deptCode: targetUser.deptCode,
+        facultyCode: targetUser.facultyCode,
+        department: targetUser.department,
+        faculty: targetUser.faculty
+      }
     })
   } catch (error) {
     console.error(error)

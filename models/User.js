@@ -20,10 +20,22 @@ const userSchema = new mongoose.Schema({
   email: { type: String, required: true, unique: true, lowercase: true, trim: true },
   passwordHash: { type: String, required: true, select: false },
   displayName: { type: String, required: true, trim: true },
-  department: { type: String, required: true },
-  faculty: { type: String, required: true },
-  facultyCode: { type: String, required: true },
-  deptCode: { type: String, required: true },
+  department: {
+    type: String,
+    required: function () { return ['student', 'lecturer', 'hod'].includes(this.role) }
+  },
+  faculty: {
+    type: String,
+    required: function () { return ['student', 'lecturer', 'hod', 'dean'].includes(this.role) }
+  },
+  facultyCode: {
+    type: String,
+    required: function () { return ['student', 'lecturer', 'hod', 'dean'].includes(this.role) }
+  },
+  deptCode: {
+    type: String,
+    required: function () { return ['student', 'lecturer', 'hod'].includes(this.role) }
+  },
   enrollmentYear: { type: Number, default: null },
   programDuration: { type: Number, default: null },
   accountStatus: {
