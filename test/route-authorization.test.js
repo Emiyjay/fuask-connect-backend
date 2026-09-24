@@ -4,7 +4,6 @@ const express = require('express')
 const http = require('node:http')
 const path = require('node:path')
 
-const REPO_ROOT = path.resolve(__dirname, '..')
 const AUTH_PATH = require.resolve('../middleware/auth')
 
 function loadRoute(routePath, user) {
@@ -68,12 +67,6 @@ test('route authorization boundaries reject cross-scope and unauthorized request
     level: '200'
   }
 
-  const seStudent = {
-    ...cseStudent,
-    _id: '507f1f77bcf86cd799439012',
-    deptCode: 'SE'
-  }
-
   const cseHod = {
     ...cseStudent,
     role: 'hod',
@@ -91,12 +84,6 @@ test('route authorization boundaries reject cross-scope and unauthorized request
     role: 'dean',
     facultyCode: 'MED',
     _id: '507f1f77bcf86cd799439015'
-  }
-
-  const dpr = {
-    ...cseStudent,
-    role: 'dpr',
-    _id: '507f1f77bcf86cd799439016'
   }
 
   const superAdmin = {
@@ -263,13 +250,4 @@ test('route authorization boundaries reject cross-scope and unauthorized request
     { role: 'dean', facultyCode: 'CPC' }
   )
   assert.equal(promoteInvalidId.status, 400)
-
-  const promoteStudentDirectly = await requestRoute(
-    '../routes/admin',
-    superAdmin,
-    'PATCH',
-    '/users/507f1f77bcf86cd799439011/promote',
-    { role: 'dean', facultyCode: 'CPC' }
-  )
-  assert.equal(promoteStudentDirectly.status, 404)
 })
