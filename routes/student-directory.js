@@ -1,4 +1,5 @@
 const express = require('express')
+const mongoose = require('mongoose')
 const router = express.Router()
 
 const User = require('../models/User')
@@ -22,6 +23,9 @@ function buildScope(user) {
 
 router.get('/:id', protect, canViewDirectory, async (req, res) => {
   try {
+    if (!mongoose.isValidObjectId(req.params.id)) {
+      return res.status(400).json({ success: false, error: 'Invalid student ID' })
+    }
     const student = await User.findOne({
       _id: req.params.id,
       role: 'student',
