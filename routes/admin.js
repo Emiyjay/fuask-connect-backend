@@ -142,9 +142,9 @@ router.patch('/users/:id/promote', protect, onlySuperAdmin, async (req, res) => 
       return res.status(400).json({ success: false, error: 'Students cannot be promoted directly - they must register as staff first' })
     }
 
-    if (role === 'hod') {
+    if (['lecturer', 'hod'].includes(role)) {
       if (typeof deptCode !== 'string' || !deptCode.trim()) {
-        return res.status(400).json({ success: false, error: 'deptCode is required when assigning HOD role' })
+        return res.status(400).json({ success: false, error: 'deptCode is required when assigning this role' })
       }
 
       const department = getDepartmentByCode(deptCode)
@@ -171,6 +171,8 @@ router.patch('/users/:id/promote', protect, onlySuperAdmin, async (req, res) => 
       targetUser.department = null
       targetUser.deptCode = null
     } else {
+      targetUser.department = null
+      targetUser.faculty = null
       targetUser.deptCode = null
       targetUser.facultyCode = null
     }
