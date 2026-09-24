@@ -9,6 +9,8 @@ const { protect } = require('../middleware/auth')
 const { uploadField } = require('../middleware/upload')
 const { sendPushToMany } = require('../utils/sendPush')
 const { getEnrollmentYearForLevel } = require('../utils/academicSession')
+const { getDepartmentByCode } = require('../utils/validateMatric')
+const mongoose = require('mongoose')
 
 function isOwnDeptHOD(req, res, next) {
   if (req.user.role !== 'hod') {
@@ -18,6 +20,16 @@ function isOwnDeptHOD(req, res, next) {
     return res.status(403).json({ success: false, error: 'You can only manage your own department\'s timetable' })
   }
   next()
+}
+
+function canViewDepartment(req, deptCode) {
+  const department = getDepartmentByCode(deptCode)
+  if (!department) return false
+  if (['super_admin', 'dpr'].includes(req.user.role)) return true
+  if (req.user.role === 'hod') return req.user.deptCode === department.deptCode
+  if (req.user.role === 'dean') return req.user.facultyCode === department.facultyCode
+  if (req.user.role === 'student') return req.user.deptCode === department.deptCode
+  return false
 }
 
 function getExamUrgency(examDate) {
@@ -57,7 +69,11 @@ router.get('/mine', protect, async (req, res) => {
 
 router.get('/department/:deptCode', protect, async (req, res) => {
   try {
-    const classes = await Timetable.find({ deptCode: req.params.deptCode })
+    if (!canViewDepartment(req, req.params.deptCode)) {
+      return res.status(403).json({ success: false, error: 'You are not authorized to view this department timetable' })
+    }
+    const department = getDepartmentByCode(req.params.deptCode)
+    const classes = await Timetable.find({ deptCode: department.deptCode })
       .sort({ level: 1, dayOfWeek: 1, startTime: 1 })
 
     res.status(200).json({ success: true, count: classes.length, data: classes })
